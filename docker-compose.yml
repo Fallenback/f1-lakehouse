@@ -1,0 +1,46 @@
+x-common: &common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+  environment:
+    # Desde 2025 os SDKs da AWS enviam o upload em partes no formato aws-chunked,
+    # com o checksum num trailer no fim do corpo. O proxy da rede corporativa
+    # derruba a conexão nesse formato: o resultado é o ConnectionClosedError /
+    # RemoteDisconnected, ou um arquivo de 0 byte chegando no bucket.
+    # Com "when_required" o checksum só é calculado quando a operação exige,
+    # e o upload volta a ser um PUT comum, que o proxy deixa passar.
+    AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+
+    # Sobrepõe o AWS_CA_BUNDLE do .env, que aponta para um caminho do Windows
+    # inexistente dentro do container. Aqui vale o bundle do sistema, que já
+    # inclui os certificados da rede instalados no Dockerfile.
+    AWS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+    REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+    SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  volumes:
+    - ./data:/app/data
+    # Cache padrão do fastf1: preserva os downloads entre execuções.
+    - fastf1-cache:/root/.fastf1
+
+services:
+  # Envio dos parquets de data/ para o bucket S3.
+  sender:
+    <<: *common
+    command: ["python", "sender.py"]
+
+  # Coleta via FastF1. Os argumentos vão no fim do comando, por exemplo:
+  #   docker compose run --rm collect python collect.py --start 2021 --stop 2023 -m R S
+  collect:
+    <<: *common
+    command: ["python", "collect.py", "--start", "2021", "--stop", "2023", "-m", "R", "S"]
+
+  # Regrava os Parquets jÃ¡ enviados para converter TIMESTAMP(NANOS) em
+  # TIMESTAMP(MICROS), formato lido pelo Databricks.
+  rewrite-parquets:
+    <<: *common
+    command: ["python", "rewrite_parquets.py"]
+
+volumes:
+  fastf1-cache:

@@ -1,5 +1,3 @@
-# %%
-
 import fastf1
 import requests
 import pandas as pd
@@ -8,7 +6,6 @@ import argparse
 requests.packages.urllib3.disable_warnings()
 pd.set_option('display.max_columns', None)   
 
-# %%
 
 class CollectResults:
     def __init__(self, years=[2021, 2022, 2023], modes=['R','S']):
@@ -35,7 +32,13 @@ class CollectResults:
 
     def save_data(self, df:pd.DataFrame, year:int, gp:int, mode:str):
         filename = f"data/{year}_{gp:02}_{mode}.parquet"
-        df.to_parquet(filename, index=False)
+        df.to_parquet(
+            filename,
+            index=False,
+            engine="pyarrow",
+            coerce_timestamps="us",
+            allow_truncated_timestamps=True,
+        )
     
     def process(self, year, gp, mode):
         df = self.get_data(year, gp, mode)
@@ -56,25 +59,26 @@ class CollectResults:
             print(f"processando ano {year}...")
             self.process_year_modes(year)
             time.sleep(15)
-       
-        
-# %%
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--years', "-y",nargs='+', type=int)
-parser.add_argument('--modes', "-m", nargs='+')
-parser.add_argument('--start', "-s", type=int)
-parser.add_argument('--stop', "-t", type=int)
-args = parser.parse_args()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--years', "-y", nargs='+', type=int)
+    parser.add_argument('--modes', "-m", nargs='+', default=['R', 'S'])
+    parser.add_argument('--start', "-s", type=int)
+    parser.add_argument('--stop', "-t", type=int)
+    args = parser.parse_args()
 
-if args.years:
-    collect = CollectResults(args.years, args.modes)
+    if args.years:
+        collect = CollectResults(args.years, args.modes)
+    elif args.start and args.stop:
+        years = list(range(args.start, args.stop + 1))
+        collect = CollectResults(years, args.modes)
+    else:
+        parser.error("Informe --years ou --start e --stop.")
 
-elif args.start and args.stop:
-    years = [i for i in range (args.start, args.stop+1)]
-    collect = CollectResults(years, args.modes)
+    collect.process_years()
 
-collect.process_years()
 
-# %%
+if __name__ == "__main__":
+    main()

@@ -1,12 +1,9 @@
-#%%
-
-
 import dotenv
 import os
 dotenv.load_dotenv()
 import boto3
 from tqdm import tqdm
-#%%
+import argparse
 
 AWS_KEY = os.getenv("AWS_KEY")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY")
@@ -43,7 +40,15 @@ class Sender:
         files = [i for i in os.listdir(folder) if i.endswith(".parquet")]
         for file in tqdm(files):
             self.process_file(os.path.join(folder, file))
-# %%
 
-send = Sender(bucket_name="datalake-raw-925645278556-us-east-1-an", bucket_folder="f1/results")
-send.process_folder("data")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bucket_name", type=str, default="datalake-raw-925645278556-us-east-1-an")
+    parser.add_argument("--folder", type=str, default="data")
+    parser.add_argument("--bucket_path", type=str, default="f1/results")
+    args = parser.parse_args()
+
+    send = Sender(args.bucket_name, args.bucket_path)
+    send.process_folder(args.folder)
+
